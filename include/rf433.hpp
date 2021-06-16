@@ -12,7 +12,9 @@ enum {
 };
 
 typedef struct {
-  uint32_t data;
+  uint32_t addr;
+  uint8_t unit;
+  uint8_t state;
 } rf433_event_t;
 
 
@@ -20,8 +22,8 @@ class RF433Transmitter {
   public:
     RF433Transmitter(gpio_num_t pin, rmt_channel_t tx_channel);
 
-    void sendCocoCode(uint addr, uint grp, bool on);
-    void sendElroCode(uint addr, uint grp, bool on);
+    void sendCocoClassicCode(uint addr, uint unit, bool state);
+    void sendCocoCode(uint addr, uint unit, bool state);
       
   private: 
     rmt_channel_t rmtChannel;
@@ -33,8 +35,21 @@ class RF433Receiver {
     RF433Receiver(gpio_num_t pin, rmt_channel_t rx_channel);
 
   private: 
-    static bool cocoDurationValid(uint32_t duration0, uint32_t duration1);
-    static uint32_t decodeCocoElroCode(rmt_item32_t *items, int length);
+    static bool decodeCocoClassicCode(
+        rmt_item32_t *items, 
+        int length, 
+        rf433_event_t *event);
+    static bool decodeCocoNewCode(
+        rmt_item32_t *items, 
+        int length,
+        rf433_event_t *event);
+    static bool normalizePulse(
+        uint32_t duration0, 
+        uint32_t duration1,
+        uint16_t period,
+        uint8_t *t0,
+        uint8_t *t1);
+
     static void receiverTask(void *arg);
     TaskHandle_t receiverTaskHandle;
 
