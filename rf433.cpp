@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "rf433.hpp"
+#include "esp_chip_info.h"
 
 ESP_EVENT_DEFINE_BASE(RF433_EVENTS);
 
@@ -192,7 +193,7 @@ void RF433Receiver::receiverTask(void *arg) {
   RF433Receiver *receiver = (RF433Receiver *)arg;
 
   RingbufHandle_t rb = NULL;
-  uint32_t length = 0;
+  size_t length = 0;
   rmt_item32_t *items = NULL;
 
   rmt_get_ringbuf_handle(receiver->rmtChannel, &rb);
