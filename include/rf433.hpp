@@ -21,32 +21,38 @@ typedef union {
         rmt_symbol_word_t symbol;
     } received;
 
-} rf433_event_t;
+} coco_event_t;
 
-class RF433Transmitter
+class CocoTransmitter
 {
-   public:
-    RF433Transmitter(gpio_num_t pin, rmt_channel_handle_t tx_channel);
-
-    void sendCocoClassicCode(uint addr, uint unit, bool state);
-    void sendCocoCode(uint addr, uint unit, bool state);
-
    private:
-    rmt_channel_handle_t rmtChannel;
+    rmt_channel_handle_t txChannel;
+    rmt_encoder_handle_t classicEncoder;
+    rmt_encoder_handle_t newEncoder;
+
+   public:
+    CocoTransmitter(gpio_num_t pin);
+
+    void sendCocoClassicCode(uint addr, uint unit, bool state,
+                             int numTransmissions);
+    void sendCocoCode(uint addr, uint unit, bool state, int numTransmissions);
+    void waitTillWriteCompletes();
 };
 
-class RF433Receiver
+class CocoReceiver
 {
    public:
-    RF433Receiver(gpio_num_t pin);
+    CocoReceiver(gpio_num_t pin);
 
    private:
     static bool decodeCocoClassicCode(rmt_symbol_word_t *items, int length,
-                                      rf433_event_t *event);
+                                      coco_event_t *event);
     static bool decodeCocoNewCode(rmt_symbol_word_t *items, int length,
-                                  rf433_event_t *event);
+                                  coco_event_t *event);
+    static bool normalizeClassicPulse(uint32_t duration0, uint32_t duration1,
+                                      uint8_t *t0, uint8_t *t1);
     static bool normalizePulse(uint32_t duration0, uint32_t duration1,
-                               uint16_t period, uint8_t *t0, uint8_t *t1);
+                               uint8_t *t0, uint8_t *t1);
 
     static bool rxDoneCallback(rmt_channel_handle_t channel,
                                const rmt_rx_done_event_data_t *edata,
