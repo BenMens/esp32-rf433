@@ -16,11 +16,8 @@ ESP_EVENT_DEFINE_BASE(RF433_EVENTS);
 
 static const char *TAG = "RF433";
 
-// #define COCO_ALPHA_TIME 295
-// #define COCONEW_ALPHA_TIME 285
-// #define COCONEW_BETA_TIME 285
-#define MIN_PULSE_WIDTH (250)
-#define MAX_PULSE_WIDTH (4 * 1000 * 1000)
+#define MIN_PULSE_WIDTH_NS (8 * 255)
+#define MAX_PULSE_WIDTH_NS (4000 * 1000)
 
 enum coco_encoding_type { COCO_CLASSIC, COCO_NEW };
 
@@ -70,9 +67,6 @@ IRAM_ATTR static size_t rmt_coco_encode(rmt_encoder_t *encoder,
                     coco_encoder->bit = 1 << 31;
                     coco_encoder->index = 32;
                 }
-
-                returnState |= RMT_ENCODING_COMPLETE;
-                shouldYield = true;
             }
 
         } else if (coco_encoder->index > 0) {
@@ -164,7 +158,7 @@ esp_err_t rmt_new_coco_encoder(gpio_num_t pin, rmt_encoder_handle_t *retEncoder)
     cocoEncoder->sequences[0][0] = {{
         .duration0 = 270,
         .level0 = 1,
-        .duration1 = 200,
+        .duration1 = 270,
         .level1 = 0,
     }};
     cocoEncoder->sequences[0][1] = {{
@@ -184,7 +178,7 @@ esp_err_t rmt_new_coco_encoder(gpio_num_t pin, rmt_encoder_handle_t *retEncoder)
     cocoEncoder->sequences[1][1] = {{
         .duration0 = 270,
         .level0 = 1,
-        .duration1 = 200,
+        .duration1 = 270,
         .level1 = 0,
     }};
 
@@ -307,18 +301,16 @@ void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
     };
 
     for (int i = numTransmissions; i > 0; i--) {
+        rmt_tx_wait_all_done(txChannel, 2000);
         rmt_transmit(txChannel, this->newEncoder, &code, sizeof(code),
                      &transmit_config);
-        if (i > 1) {
-            rmt_tx_wait_all_done(txChannel, 2000);
-        }
     }
 }
 
 void CocoTransmitter::sendCocoClassicCode(uint addr, uint unit, bool state,
                                           int numTransmissions)
 {
-    uint32_t code;
+    static uint32_t code;
 
     code =
         (state ? 0b1110 : 0b0110) << 8 | (unit & 0b1111) << 4 | (addr & 0b1111);
@@ -332,11 +324,9 @@ void CocoTransmitter::sendCocoClassicCode(uint addr, uint unit, bool state,
     };
 
     for (int i = numTransmissions; i > 0; i--) {
+        rmt_tx_wait_all_done(txChannel, 2000);
         rmt_transmit(txChannel, this->classicEncoder, &code, sizeof(code),
                      &transmit_config);
-        if (i > 1) {
-            rmt_tx_wait_all_done(txChannel, 2000);
-        }
     }
 }
 
@@ -385,8 +375,8 @@ void CocoReceiver::receiverTask(void *arg)
     CocoReceiver *receiver = (CocoReceiver *)arg;
 
     rmt_receive_config_t receive_config = {
-        .signal_range_min_ns = MIN_PULSE_WIDTH,
-        .signal_range_max_ns = MAX_PULSE_WIDTH,
+        .signal_range_min_ns = MIN_PULSE_WIDTH_NS,
+        .signal_range_max_ns = MAX_PULSE_WIDTH_NS,
     };
 
     rmt_symbol_word_t raw_symbols[80];
@@ -398,11 +388,8 @@ void CocoReceiver::receiverTask(void *arg)
                           pdMS_TO_TICKS(1000)) == pdPASS) {
             coco_event_t event;
 
-            ESP_ERROR_CHECK(rmt_receive(receiver->rx_chan, raw_symbols,
-                                        sizeof(raw_symbols), &receive_config));
-
-            if (decodeCocoNewCode(rx_data.received_symbols, rx_data.num_symbols,
-                                  &event)) {
+            if (decodeCocoCode(rx_data.received_symbols, rx_data.num_symbols,
+                               &event)) {
                 esp_event_post(RF433_EVENTS, RF433_EVENT_BUTTON_PRESS, &event,
                                sizeof(event), 100);
             }
@@ -412,6 +399,9 @@ void CocoReceiver::receiverTask(void *arg)
                 esp_event_post(RF433_EVENTS, RF433_EVENT_BUTTON_PRESS, &event,
                                sizeof(event), 100);
             }
+
+            ESP_ERROR_CHECK(rmt_receive(receiver->rx_chan, raw_symbols,
+                                        sizeof(raw_symbols), &receive_config));
         }
     }
 }
@@ -432,7 +422,7 @@ IRAM_ATTR bool CocoReceiver::rxDoneCallback(
 bool CocoReceiver::normalizeClassicPulse(uint32_t duration0, uint32_t duration1,
                                          uint8_t *t0, uint8_t *t1)
 {
-    if (duration0 < 200 || duration1 < 200) {
+    if (duration0 < 150 || duration1 < 150) {
         return false;
     }
 
@@ -453,42 +443,6 @@ bool CocoReceiver::normalizeClassicPulse(uint32_t duration0, uint32_t duration1,
         if (*t0 > 1 && *t0 < 4) {
             *t0 = 2;
         } else if (*t0 >= 4) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool CocoReceiver::normalizePulse(uint32_t duration0, uint32_t duration1,
-                                  uint8_t *t0, uint8_t *t1)
-{
-    if (duration0 < 200 || duration1 < 200) {
-        return false;
-    }
-
-    if (duration0 < duration1) {
-        *t0 = 1;
-
-        *t1 = duration1 / duration0;
-        if (*t1 == 1) {
-        } else if (*t1 > 1 && *t1 < 8) {
-            *t1 = 2;
-        } else if (*t1 < 12) {
-            *t1 = 10;
-        } else {
-            return false;
-        }
-    } else {
-        *t1 = 1;
-
-        *t0 = duration0 / duration1;
-        if (*t0 == 1) {
-        } else if (*t0 > 1 && *t0 < 8) {
-            *t0 = 2;
-        } else if (*t0 < 12) {
-            *t0 = 10;
-        } else {
             return false;
         }
     }
@@ -536,20 +490,54 @@ bool CocoReceiver::decodeCocoClassicCode(rmt_symbol_word_t *items, int length,
     return true;
 }
 
-bool CocoReceiver::decodeCocoNewCode(rmt_symbol_word_t *items, int length,
-                                     coco_event_t *event)
+bool CocoReceiver::normalizePulse(uint32_t duration0, uint32_t duration1,
+                                  uint8_t *t0, uint8_t *t1)
+{
+    if (duration0 < 150 || duration1 < 150) {
+        return false;
+    }
+
+    if (duration0 < duration1) {
+        *t0 = 1;
+
+        if (duration1 < 400) {
+            *t1 = 1;
+        } else if (duration1 < 1500) {
+            *t1 = 2;
+        } else if (duration1 < 3000) {
+            *t1 = 10;
+        } else {
+            return false;
+        }
+    } else {
+        *t1 = 1;
+
+        if (duration0 < 400) {
+            *t0 = 1;
+        } else if (duration0 < 1500) {
+            *t0 = 2;
+        } else if (duration0 < 3000) {
+            *t0 = 10;
+        } else {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CocoReceiver::decodeCocoCode(rmt_symbol_word_t *items, int length,
+                                  coco_event_t *event)
 {
     uint32_t code = 0;
     uint8_t t0, t1, t2, t3;
     bool p0Valid, p1Valid;
 
+    // ESP_LOGI(TAG, "length = %u", length);
+
     if (length != 66) {
         return false;
     }
-
-    // for (int i = 0; i < 66; i++) {
-    //     ESP_LOGI(TAG, "pulse %u %u %u %u", items[i].duration0, items[i].level0, items[i].duration1, items[i].level1);
-    // }
 
     p0Valid = normalizePulse(items[0].duration0, items[0].duration1, &t0, &t1);
 
@@ -557,12 +545,30 @@ bool CocoReceiver::decodeCocoNewCode(rmt_symbol_word_t *items, int length,
         return false;
     }
 
-    for (int i = 1; i < (length - 1); i += 2) {
+    // ESP_LOGI(TAG, "Code");
+    // for (int i = 0; i < 66; i++) {
+    //     normalizePulse(items[i].duration0, items[i].duration1, &t0, &t1);
+    //     ESP_LOGI(TAG, "p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u",
+    //              items[i].duration0, items[i].level0, items[i].duration1,
+    //              items[i].level1, t0, t1);
+    // }
+
+    for (int i = 1; i < (length - 2); i += 2) {
         p0Valid =
             normalizePulse(items[i].duration0, items[i].duration1, &t0, &t1);
 
         p1Valid = normalizePulse(items[i + 1].duration0, items[i + 1].duration1,
                                  &t2, &t3);
+
+        // ESP_LOGI(TAG,
+        //          "i0 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u, v0=%u",
+        //          items[i].duration0, items[i].level0, items[i].duration1,
+        //          items[i].level1, t0, t1, p0Valid);
+
+        // ESP_LOGI(TAG,
+        //          "i1 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u, v1=%u",
+        //          items[i + 1].duration0, items[i + 1].level0,
+        //          items[i + 1].duration1, items[i + 1].level1, t2, t3, p1Valid);
 
         if (p0Valid && p1Valid) {
             if (t0 == 1 && t1 == 2 && t2 == 1 && t3 == 1) {
@@ -571,9 +577,11 @@ bool CocoReceiver::decodeCocoNewCode(rmt_symbol_word_t *items, int length,
             } else if (t0 == 1 && t1 == 1 && t2 == 1 && t3 == 2) {
                 code <<= 1;
             } else {
+                // ESP_LOGI(TAG, "E1");
                 return false;
             }
         } else {
+            // ESP_LOGI(TAG, "E2");
             return false;
         }
     }

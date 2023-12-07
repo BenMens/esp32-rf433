@@ -45,14 +45,15 @@ class CocoReceiver
     CocoReceiver(gpio_num_t pin);
 
    private:
-    static bool decodeCocoClassicCode(rmt_symbol_word_t *items, int length,
-                                      coco_event_t *event);
-    static bool decodeCocoNewCode(rmt_symbol_word_t *items, int length,
-                                  coco_event_t *event);
     static bool normalizeClassicPulse(uint32_t duration0, uint32_t duration1,
                                       uint8_t *t0, uint8_t *t1);
+    static bool decodeCocoClassicCode(rmt_symbol_word_t *items, int length,
+                                      coco_event_t *event);
+                                      
     static bool normalizePulse(uint32_t duration0, uint32_t duration1,
                                uint8_t *t0, uint8_t *t1);
+    static bool decodeCocoCode(rmt_symbol_word_t *items, int length,
+                               coco_event_t *event);
 
     static bool rxDoneCallback(rmt_channel_handle_t channel,
                                const rmt_rx_done_event_data_t *edata,
