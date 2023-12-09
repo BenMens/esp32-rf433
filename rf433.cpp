@@ -290,7 +290,7 @@ void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
 {
     static uint32_t code;
 
-    code = addr << 6 | (state & 0b1) << 4 | (unit & 0b1111);
+    code = addr << 6 | (state & 0b11) << 4 | (unit & 0b1111);
 
     rmt_transmit_config_t transmit_config = {
         .loop_count = 0,
@@ -561,14 +561,14 @@ bool CocoReceiver::decodeCocoCode(rmt_symbol_word_t *items, int length,
                                  &t2, &t3);
 
         // ESP_LOGI(TAG,
-        //          "i0 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u, v0=%u",
-        //          items[i].duration0, items[i].level0, items[i].duration1,
-        //          items[i].level1, t0, t1, p0Valid);
+        //          "i0 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u,
+        //          v0=%u", items[i].duration0, items[i].level0,
+        //          items[i].duration1, items[i].level1, t0, t1, p0Valid);
 
         // ESP_LOGI(TAG,
-        //          "i1 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u, v1=%u",
-        //          items[i + 1].duration0, items[i + 1].level0,
-        //          items[i + 1].duration1, items[i + 1].level1, t2, t3, p1Valid);
+        //          "i1 p0 = %u, l0 = %u, p1 = %u, l1 = %u, t0=%u, t1=%u,
+        //          v1=%u", items[i + 1].duration0, items[i + 1].level0, items[i
+        //          + 1].duration1, items[i + 1].level1, t2, t3, p1Valid);
 
         if (p0Valid && p1Valid) {
             if (t0 == 1 && t1 == 2 && t2 == 1 && t3 == 1) {
@@ -587,8 +587,8 @@ bool CocoReceiver::decodeCocoCode(rmt_symbol_word_t *items, int length,
     }
 
     event->press.addr = (code >> 6);
-    event->press.unit = code & 0b111;
-    event->press.state = (code >> 3) & 0x07;
+    event->press.unit = code & 0b1111;
+    event->press.state = (code >> 4) & 0b11;
 
     uint32_t bit = 1;
     for (int i = 31; i >= 0; i--) {
