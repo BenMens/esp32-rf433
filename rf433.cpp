@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "esp_chip_info.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -283,6 +284,9 @@ CocoTransmitter::CocoTransmitter(gpio_num_t pin)
     ESP_ERROR_CHECK(rmt_new_classic_coco_encoder(pin, &classicEncoder));
 
     ESP_ERROR_CHECK(rmt_new_coco_encoder(pin, &newEncoder));
+
+    // Disable transmitter to prevent interference with WIFI.
+    gpio_set_level(pin, 0);
 }
 
 void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
