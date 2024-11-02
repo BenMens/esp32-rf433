@@ -267,6 +267,7 @@ CocoTransmitter::CocoTransmitter(gpio_num_t pin)
         .resolution_hz = 1 * 1000 * 1000,
         .mem_block_symbols = 128,
         .trans_queue_depth = 1,
+        .intr_priority = 0,
         .flags =
             {
                 .invert_out = false,
@@ -274,7 +275,6 @@ CocoTransmitter::CocoTransmitter(gpio_num_t pin)
                 .io_loop_back = false,
                 .io_od_mode = false,
             },
-        .intr_priority = 0,
     };
 
     ESP_ERROR_CHECK(rmt_new_tx_channel(&channelConfig, &txChannel));
@@ -289,8 +289,8 @@ CocoTransmitter::CocoTransmitter(gpio_num_t pin)
     gpio_set_level(pin, 0);
 }
 
-void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
-                                   int numTransmissions)
+void CocoTransmitter::sendCocoCode(unsigned int addr, unsigned int unit,
+                                   bool state, int numTransmissions)
 {
     static uint32_t code;
 
@@ -301,6 +301,7 @@ void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
         .flags =
             {
                 .eot_level = 0,
+                .queue_nonblocking = 0,
             },
     };
 
@@ -311,8 +312,8 @@ void CocoTransmitter::sendCocoCode(uint addr, uint unit, bool state,
     }
 }
 
-void CocoTransmitter::sendCocoClassicCode(uint addr, uint unit, bool state,
-                                          int numTransmissions)
+void CocoTransmitter::sendCocoClassicCode(unsigned int addr, unsigned int unit,
+                                          bool state, int numTransmissions)
 {
     static uint32_t code;
 
@@ -324,6 +325,7 @@ void CocoTransmitter::sendCocoClassicCode(uint addr, uint unit, bool state,
         .flags =
             {
                 .eot_level = 0,
+                .queue_nonblocking = 0,
             },
     };
 
@@ -346,13 +348,13 @@ CocoReceiver::CocoReceiver(gpio_num_t pin)
         .clk_src = RMT_CLK_SRC_DEFAULT,
         .resolution_hz = 1 * 1000 * 1000,
         .mem_block_symbols = 128,
+        .intr_priority = 0,
         .flags =
             {
                 .invert_in = false,
                 .with_dma = false,
                 .io_loop_back = false,
             },
-        .intr_priority = 0,
     };
     ESP_ERROR_CHECK(rmt_new_rx_channel(&rx_chan_config, &rx_chan));
 
@@ -381,7 +383,9 @@ void CocoReceiver::receiverTask(void *arg)
     rmt_receive_config_t receive_config = {
         .signal_range_min_ns = MIN_PULSE_WIDTH_NS,
         .signal_range_max_ns = MAX_PULSE_WIDTH_NS,
-    };
+        .flags{
+            .en_partial_rx = 0,
+        }};
 
     rmt_symbol_word_t raw_symbols[80];
     rmt_rx_done_event_data_t rx_data;

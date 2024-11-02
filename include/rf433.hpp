@@ -33,9 +33,9 @@ class CocoTransmitter
    public:
     CocoTransmitter(gpio_num_t pin);
 
-    void sendCocoClassicCode(uint addr, uint unit, bool state,
+    void sendCocoClassicCode(unsigned int addr, unsigned int unit, bool state,
                              int numTransmissions);
-    void sendCocoCode(uint addr, uint unit, bool state, int numTransmissions);
+    void sendCocoCode(unsigned int addr, unsigned int unit, bool state, int numTransmissions);
     void waitTillWriteCompletes();
 };
 
